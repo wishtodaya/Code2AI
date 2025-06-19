@@ -1,0 +1,196 @@
+{
+  "name": "code2ai",
+  "displayName": "code2ai",
+  "description": "将项目代码导出为Markdown 格式投喂给AI,提高开发效率。",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Formatters"
+  ],
+  "keywords": [
+    "ai",
+    "markdown",
+    "export",
+    "code",
+    "documentation",
+    "chatgpt",
+    "claude",
+    "llm"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "code2ai.parse",
+        "title": "Code2AI:导出Markdown",
+        "category": "Code2AI"
+      },
+      {
+        "command": "code2ai.configure",
+        "title": "打开设置",
+        "category": "Code2AI"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "code2ai.parse",
+          "when": "explorerResourceIsFolder || explorerResourceIsRoot",
+          "group": "z_commands@1"
+        },
+        {
+          "command": "code2ai.parse",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "z_commands@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Code2AI",
+      "properties": {
+        "code2ai.maxTokensPerChunk": {
+          "type": "number",
+          "default": 100000,
+          "minimum": 1000,
+          "maximum": 1000000,
+          "markdownDescription": "每个输出文件的最大 Token 数量。建议值：\n- GPT-3.5: 15000\n- GPT-4: 30000\n- Claude: 100000",
+          "order": 1
+        },
+        "code2ai.useGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否使用 .gitignore 规则来排除文件",
+          "order": 2
+        },
+        "code2ai.preserveFileIntegrity": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否保持文件完整性（避免在文件中间分割）",
+          "order": 3
+        },
+        "code2ai.outputDirectory": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "输出目录路径（留空则使用源目录）。支持变量：\n- `${workspaceFolder}`: 工作区根目录\n- `${sourceDir}`: 源文件目录",
+          "order": 4
+        },
+        "code2ai.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "*.test.*",
+            "*.spec.*",
+            "__tests__/**",
+            "**/*.min.js",
+            "**/*.min.css",
+            "**/vendor/**",
+            "**/third_party/**",
+            "**/*.bundle.js",
+            "**/coverage/**"
+          ],
+          "markdownDescription": "额外的文件排除模式（支持 glob 语法）。示例：\n- `*.test.ts`: 排除所有测试文件\n- `**/docs/**`: 排除所有 docs 目录",
+          "order": 5
+        },
+        "code2ai.includePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "文件包含模式（留空则包含所有支持的文件类型）。示例：\n- `src/**/*.ts`: 只包含 src 目录下的 TypeScript 文件\n- `*.config.*`: 只包含配置文件",
+          "order": 6
+        },
+        "code2ai.supportedExtensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".ts",
+            ".js",
+            ".jsx",
+            ".tsx",
+            ".json",
+            ".md",
+            ".txt",
+            ".py",
+            ".java",
+            ".cpp",
+            ".cs",
+            ".go",
+            ".rs",
+            ".php",
+            ".html",
+            ".css",
+            ".xml",
+            ".yaml",
+            ".yml",
+            ".rb",
+            ".swift",
+            ".kt",
+            ".scala",
+            ".r",
+            ".m",
+            ".h",
+            ".c",
+            ".sh",
+            ".ps1",
+            ".sql",
+            ".vue",
+            ".svelte",
+            ".astro"
+          ],
+          "description": "支持的文件扩展名列表",
+          "order": 7
+        },
+        "code2ai.showFileTree": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否在输出中包含文件树结构",
+          "order": 8
+        },
+        "code2ai.includeEmptyFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否包含空文件",
+          "order": 9
+        },
+        "code2ai.autoOpenOutput": {
+          "type": "boolean",
+          "default": true,
+          "description": "生成完成后是否自动打开输出文件",
+          "order": 10
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.101.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2"
+  },
+  "dependencies": {
+    "ignore": "^5.2.4"
+  }
+}
