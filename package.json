@@ -1,10 +1,16 @@
 {
+  "publisher": "wishtodaya",
   "name": "code2ai",
   "displayName": "code2ai",
-  "description": "将项目代码导出为Markdown 格式投喂给AI,提高开发效率。",
+  "icon": "images/icon.png",
+  "description": "将项目代码导出为Markdown格式投喂给AI,提高开发效率。",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.101.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/code2ai.git"
   },
   "categories": [
     "Other",
@@ -192,5 +198,6 @@
   },
   "dependencies": {
     "ignore": "^5.2.4"
-  }
+  },
+  "license": "MIT"
 }
