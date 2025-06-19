@@ -207,13 +207,17 @@ export class WebviewManager {
             margin: 10px 0;
             display: none;
         }
+        
+        .dir-checkbox {
+            opacity: 0.7;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h2>Code2AI - 选择要导出的文件</h2>
-            <p>选择您想要包含在 Markdown 导出中的文件。大文件将自动分割以适应 Token 限制。</p>
+            <p>选择您想要包含在 Markdown 导出中的文件。选中目录将自动包含其中的所有文件。</p>
         </div>
 
         <div class="toolbar">
@@ -264,17 +268,119 @@ export class WebviewManager {
         const fileData = ${JSON.stringify(fileData)};
         const defaultSelectedPath = ${defaultSelectedPath ? JSON.stringify(defaultSelectedPath) : 'null'};
         
+        // 构建父子关系映射
+        const parentChildMap = {};
+        const childParentMap = {};
+        
+        Object.keys(fileData).forEach(path => {
+            const item = fileData[path];
+            if (item.children) {
+                parentChildMap[path] = item.children;
+                item.children.forEach(childPath => {
+                    childParentMap[childPath] = path;
+                });
+            }
+        });
+        
+        function getAllDescendantFiles(dirPath) {
+            const files = [];
+            const queue = [dirPath];
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const data = fileData[current];
+                
+                if (data.type === 'file') {
+                    files.push(current);
+                } else if (parentChildMap[current]) {
+                    queue.push(...parentChildMap[current]);
+                }
+            }
+            
+            return files;
+        }
+        
+        function updateParentState(childPath) {
+            let current = childParentMap[childPath];
+            
+            while (current) {
+                const checkbox = document.querySelector(\`input[value="\${CSS.escape(current)}"]\`);
+                if (checkbox) {
+                    const children = parentChildMap[current] || [];
+                    const childCheckboxes = children.map(child => 
+                        document.querySelector(\`input[value="\${CSS.escape(child)}"]\`)
+                    ).filter(cb => cb !== null);
+                    
+                    const checkedCount = childCheckboxes.filter(cb => cb.checked).length;
+                    
+                    if (checkedCount === 0) {
+                        checkbox.checked = false;
+                        checkbox.indeterminate = false;
+                    } else if (checkedCount === childCheckboxes.length) {
+                        checkbox.checked = true;
+                        checkbox.indeterminate = false;
+                    } else {
+                        checkbox.checked = false;
+                        checkbox.indeterminate = true;
+                    }
+                }
+                
+                current = childParentMap[current];
+            }
+        }
+        
+        function onCheckboxChange(checkbox) {
+            const path = checkbox.value;
+            const data = fileData[path];
+            
+            if (data.type === 'directory') {
+                // 如果是目录，更新所有子项
+                const descendants = getAllDescendantFiles(path);
+                descendants.forEach(filePath => {
+                    const fileCheckbox = document.querySelector(\`input[value="\${CSS.escape(filePath)}"]\`);
+                    if (fileCheckbox) {
+                        fileCheckbox.checked = checkbox.checked;
+                    }
+                });
+                
+                // 更新所有子目录的状态
+                const allDescendants = parentChildMap[path] || [];
+                const queue = [...allDescendants];
+                while (queue.length > 0) {
+                    const current = queue.shift();
+                    const cb = document.querySelector(\`input[value="\${CSS.escape(current)}"]\`);
+                    if (cb && fileData[current].type === 'directory') {
+                        cb.checked = checkbox.checked;
+                        cb.indeterminate = false;
+                        if (parentChildMap[current]) {
+                            queue.push(...parentChildMap[current]);
+                        }
+                    }
+                }
+            }
+            
+            // 更新父级状态
+            updateParentState(path);
+            updateStats();
+        }
+        
         function updateStats() {
-            const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
             let count = 0, size = 0, tokens = 0;
+            const selectedFiles = new Set();
             
             checkboxes.forEach(cb => {
                 const data = fileData[cb.value];
-                if (data && data.type === 'file') {
-                    count++;
-                    size += data.size;
-                    tokens += data.tokens;
+                if (data && data.type === 'file' && cb.checked) {
+                    selectedFiles.add(cb.value);
                 }
+            });
+            
+            selectedFiles.forEach(path => {
+                const data = fileData[path];
+                count++;
+                size += data.size;
+                tokens += data.tokens;
             });
             
             document.getElementById('fileCount').textContent = count.toString();
@@ -313,10 +419,8 @@ export class WebviewManager {
 
         function selectAll() {
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                const data = fileData[cb.value];
-                if (data && data.type === 'file') {
-                    cb.checked = true;
-                }
+                cb.checked = true;
+                cb.indeterminate = false;
             });
             updateStats();
         }
@@ -324,20 +428,31 @@ export class WebviewManager {
         function selectNone() {
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 cb.checked = false;
+                cb.indeterminate = false;
             });
             updateStats();
         }
 
         function selectCode() {
             const codeExts = ['.ts', '.js', '.jsx', '.tsx', '.py', '.java', '.cpp', '.go', '.rs', '.cs', '.php', '.rb'];
+            
+            // 先清空所有选择
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                cb.indeterminate = false;
+            });
+            
+            // 选中代码文件
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const data = fileData[cb.value];
                 if (data && data.type === 'file') {
-                    cb.checked = codeExts.some(ext => data.name.endsWith(ext));
-                } else {
-                    cb.checked = false;
+                    if (codeExts.some(ext => data.name.endsWith(ext))) {
+                        cb.checked = true;
+                        updateParentState(cb.value);
+                    }
                 }
             });
+            
             updateStats();
         }
 
@@ -371,26 +486,33 @@ export class WebviewManager {
         }
 
         function generate() {
-            const selected = [];
+            const selected = new Set();
+            
+            // 只收集被选中的文件（不包括目录）
             document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
                 const data = fileData[cb.value];
                 if (data && data.type === 'file') {
-                    selected.push({
-                        name: data.name,
-                        path: data.path,
-                        relativePath: data.relativePath,
-                        size: data.size,
-                        extension: data.extension
-                    });
+                    selected.add(cb.value);
                 }
             });
             
-            if (selected.length === 0) {
+            const selectedArray = Array.from(selected).map(path => {
+                const data = fileData[path];
+                return {
+                    name: data.name,
+                    path: data.path,
+                    relativePath: data.relativePath,
+                    size: data.size,
+                    extension: data.extension
+                };
+            });
+            
+            if (selectedArray.length === 0) {
                 vscode.postMessage({ command: 'error', message: '请至少选择一个文件' });
                 return;
             }
             
-            vscode.postMessage({ command: 'select', files: selected });
+            vscode.postMessage({ command: 'select', files: selectedArray });
         }
 
         function cancel() {
@@ -398,18 +520,21 @@ export class WebviewManager {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // 设置所有checkbox的事件监听
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    onCheckboxChange(this);
+                });
+            });
+            
+            // 处理默认选中
             if (defaultSelectedPath) {
-                const selectorValue = defaultSelectedPath.replace(/\\\\/g, '\\\\\\\\');
-                const checkbox = document.querySelector(\`input[type="checkbox"][value="\${selectorValue}"]\`);
-                
+                const checkbox = document.querySelector(\`input[value="\${CSS.escape(defaultSelectedPath)}"]\`);
                 if (checkbox) {
                     checkbox.checked = true;
+                    onCheckboxChange(checkbox);
                 }
             }
-            
-            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                cb.addEventListener('change', updateStats);
-            });
             
             updateStats();
         });
@@ -456,6 +581,7 @@ export class WebviewManager {
         }
         
         html += `
+                        <input type="checkbox" value="${node.path}" class="dir-checkbox" />
                         <span class="tree-icon">📁</span>
                         <span>${node.name}</span>
                     </label>
@@ -477,19 +603,23 @@ export class WebviewManager {
     private collectFileData(node: TreeNode): Record<string, any> {
         const data: Record<string, any> = {};
         
-        const collect = (n: TreeNode) => {
-            data[n.path] = {
+        const collect = (n: TreeNode, parentPath?: string) => {
+            const nodeData = {
                 name: n.name,
                 path: n.path,
                 relativePath: n.relativePath,
                 type: n.type,
                 size: n.type === 'file' ? (n as FileNode).size : 0,
                 extension: n.type === 'file' ? (n as FileNode).extension : '',
-                tokens: n.type === 'file' ? this.estimateFileTokens(n as FileNode) : 0
+                tokens: n.type === 'file' ? this.estimateFileTokens(n as FileNode) : 0,
+                children: [] as string[]
             };
             
+            data[n.path] = nodeData;
+            
             if ('children' in n) {
-                n.children.forEach(collect);
+                nodeData.children = n.children.map(child => child.path);
+                n.children.forEach(child => collect(child, n.path));
             }
         };
         

@@ -4,7 +4,7 @@
   "displayName": "code2ai",
   "icon": "images/icon.png",
   "description": "将项目代码导出为Markdown格式投喂给AI,提高开发效率。",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.101.0"
   },
