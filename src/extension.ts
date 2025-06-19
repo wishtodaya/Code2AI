@@ -9,7 +9,6 @@ import { ScanOptions, ProcessOptions } from './types';
 export function activate(context: vscode.ExtensionContext) {
     const disposable = vscode.commands.registerCommand('code2ai.parse', async (uri: vscode.Uri) => {
         try {
-            // 验证输入
             if (!uri) {
                 const folders = vscode.workspace.workspaceFolders;
                 if (!folders || folders.length === 0) {
@@ -19,13 +18,18 @@ export function activate(context: vscode.ExtensionContext) {
                 uri = folders[0].uri;
             }
 
-            // 显示进度
+            const stats = await vscode.workspace.fs.stat(uri);
+            const isFile = stats.type === vscode.FileType.File;
+            
+            const baseDirUri = isFile ? vscode.Uri.joinPath(uri, '..') : uri;
+            const baseDirPath = baseDirUri.fsPath;
+            const defaultSelectedPath = isFile ? uri.fsPath : undefined;
+
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: "Code2AI",
                 cancellable: true
             }, async (progress, token) => {
-                // 步骤 1: 读取配置
                 progress.report({ increment: 0, message: "读取配置..." });
                 const config = vscode.workspace.getConfiguration('code2ai');
                 
@@ -40,26 +44,23 @@ export function activate(context: vscode.ExtensionContext) {
                     preserveFileIntegrity: config.get<boolean>('preserveFileIntegrity', true)
                 };
 
-                // 步骤 2: 扫描文件
                 progress.report({ increment: 20, message: "扫描文件..." });
-                const scanner = new Scanner(uri.fsPath, scanOptions);
+                const scanner = new Scanner(baseDirPath, scanOptions);
                 const rootNode = await scanner.scan();
                 
                 if (token.isCancellationRequested) {
                     return;
                 }
 
-                // 步骤 3: 显示文件选择界面
                 progress.report({ increment: 30, message: "等待文件选择..." });
                 const webview = new WebviewManager(context.extensionUri);
-                const selectedFiles = await webview.show(rootNode);
+                const selectedFiles = await webview.show(rootNode, defaultSelectedPath);
                 
                 if (!selectedFiles || selectedFiles.length === 0) {
                     vscode.window.showInformationMessage('未选择任何文件');
                     return;
                 }
 
-                // 步骤 4: 处理文件
                 progress.report({ increment: 20, message: "处理文件..." });
                 const processor = new Processor(processOptions);
                 const chunks = await processor.process(selectedFiles);
@@ -68,14 +69,12 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                // 步骤 5: 生成输出
                 progress.report({ increment: 20, message: "生成 Markdown..." });
                 const generator = new Generator();
                 const outputs = generator.generate(chunks);
 
-                // 步骤 6: 保存文件
                 progress.report({ increment: 10, message: "保存文件..." });
-                const outputDir = config.get<string>('outputDirectory') || uri.fsPath;
+                const outputDir = config.get<string>('outputDirectory') || baseDirPath;
                 const savedFiles: string[] = [];
                 
                 for (let i = 0; i < outputs.length; i++) {
@@ -96,7 +95,6 @@ export function activate(context: vscode.ExtensionContext) {
                     savedFiles.push(outputPath.fsPath);
                 }
 
-                // 显示成功消息并提供打开文件的选项
                 const openAction = '打开文件';
                 const result = await vscode.window.showInformationMessage(
                     `成功生成 ${outputs.length} 个文件！`,
@@ -119,7 +117,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(disposable);
     
-    // 注册配置命令
     const configCommand = vscode.commands.registerCommand('code2ai.configure', () => {
         vscode.commands.executeCommand('workbench.action.openSettings', 'code2ai');
     });
@@ -127,6 +124,4 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(configCommand);
 }
 
-export function deactivate() {
-    // 清理资源
-}
+export function deactivate() {}

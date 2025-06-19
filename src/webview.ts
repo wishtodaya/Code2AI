@@ -5,7 +5,7 @@ import { FileUtils, TokenEstimator } from './utils';
 export class WebviewManager {
     constructor(private extensionUri: vscode.Uri) {}
 
-    async show(rootNode: TreeNode): Promise<FileInfo[]> {
+    async show(rootNode: TreeNode, defaultSelectedPath?: string): Promise<FileInfo[]> {
         return new Promise((resolve) => {
             const panel = vscode.window.createWebviewPanel(
                 'code2ai',
@@ -17,7 +17,7 @@ export class WebviewManager {
                 }
             );
 
-            panel.webview.html = this.getHtml(rootNode);
+            panel.webview.html = this.getHtml(rootNode, defaultSelectedPath);
 
             panel.webview.onDidReceiveMessage(
                 message => {
@@ -40,7 +40,7 @@ export class WebviewManager {
         });
     }
 
-    private getHtml(rootNode: TreeNode): string {
+    private getHtml(rootNode: TreeNode, defaultSelectedPath?: string): string {
         const fileData = this.collectFileData(rootNode);
         
         return `<!DOCTYPE html>
@@ -117,7 +117,7 @@ export class WebviewManager {
         }
         
         .tree-item {
-            padding: 2px 0;
+            padding: 5px 0;
             user-select: none;
         }
         
@@ -127,6 +127,7 @@ export class WebviewManager {
             cursor: pointer;
             padding: 2px 4px;
             border-radius: 2px;
+            font-size: 16px; 
         }
         
         .tree-item label:hover {
@@ -134,12 +135,12 @@ export class WebviewManager {
         }
         
         .tree-item input[type="checkbox"] {
-            margin-right: 8px;
+            margin-right: 10px;
             cursor: pointer;
         }
         
         .tree-icon {
-            margin-right: 4px;
+            margin-right: 8px;
         }
         
         .tree-children {
@@ -261,8 +262,8 @@ export class WebviewManager {
     <script>
         const vscode = acquireVsCodeApi();
         const fileData = ${JSON.stringify(fileData)};
+        const defaultSelectedPath = ${defaultSelectedPath ? JSON.stringify(defaultSelectedPath) : 'null'};
         
-        // 更新统计信息
         function updateStats() {
             const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
             let count = 0, size = 0, tokens = 0;
@@ -276,17 +277,14 @@ export class WebviewManager {
                 }
             });
             
-            // 更新显示
             document.getElementById('fileCount').textContent = count.toString();
             document.getElementById('totalSize').textContent = formatBytes(size);
             document.getElementById('totalTokens').textContent = formatTokens(tokens);
             
-            // 估算生成文件数（假设每个文件最大 100K tokens）
             const maxTokensPerChunk = 100000;
             const estimatedChunks = Math.max(1, Math.ceil(tokens / maxTokensPerChunk));
             document.getElementById('chunkCount').textContent = estimatedChunks.toString();
             
-            // 显示警告
             const warning = document.getElementById('warning');
             const warningText = document.getElementById('warningText');
             
@@ -301,21 +299,18 @@ export class WebviewManager {
             }
         }
 
-        // 格式化字节
         function formatBytes(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / 1048576).toFixed(1) + ' MB';
         }
 
-        // 格式化 Token
         function formatTokens(tokens) {
             if (tokens < 1000) return tokens.toString();
             if (tokens < 1000000) return (tokens / 1000).toFixed(1) + 'K';
             return (tokens / 1000000).toFixed(2) + 'M';
         }
 
-        // 全选
         function selectAll() {
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const data = fileData[cb.value];
@@ -326,7 +321,6 @@ export class WebviewManager {
             updateStats();
         }
 
-        // 清空选择
         function selectNone() {
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 cb.checked = false;
@@ -334,7 +328,6 @@ export class WebviewManager {
             updateStats();
         }
 
-        // 仅选择代码文件
         function selectCode() {
             const codeExts = ['.ts', '.js', '.jsx', '.tsx', '.py', '.java', '.cpp', '.go', '.rs', '.cs', '.php', '.rb'];
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -348,7 +341,6 @@ export class WebviewManager {
             updateStats();
         }
 
-        // 展开/折叠功能
         function toggleNode(button) {
             const treeNode = button.closest('.tree-node');
             const children = treeNode.querySelector('.tree-children');
@@ -378,7 +370,6 @@ export class WebviewManager {
             });
         }
 
-        // 生成文件
         function generate() {
             const selected = [];
             document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
@@ -402,18 +393,24 @@ export class WebviewManager {
             vscode.postMessage({ command: 'select', files: selected });
         }
 
-        // 取消
         function cancel() {
             vscode.postMessage({ command: 'cancel' });
         }
 
-        // 监听 checkbox 变化
         document.addEventListener('DOMContentLoaded', () => {
+            if (defaultSelectedPath) {
+                const selectorValue = defaultSelectedPath.replace(/\\\\/g, '\\\\\\\\');
+                const checkbox = document.querySelector(\`input[type="checkbox"][value="\${selectorValue}"]\`);
+                
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            }
+            
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 cb.addEventListener('change', updateStats);
             });
             
-            // 初始化统计
             updateStats();
         });
     </script>
@@ -501,8 +498,6 @@ export class WebviewManager {
     }
 
     private estimateFileTokens(node: FileNode): number {
-        // 基于文件大小的简单估算
-        // 假设平均每个字符占用 0.25 个 token
         return Math.ceil(node.size * 0.25);
     }
 }
