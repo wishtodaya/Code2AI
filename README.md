@@ -47,7 +47,7 @@
 * **插件名称**: `Code2AI`
 * **版本**: `0.0.1`
 * **贡献者**: \[wishtodaya]
-* **GitHub 仓库**: [https://github.com/your-repository](https://github.com/your-repository)
+* **GitHub 仓库**: [https://github.com/wishtodaya/Code2AI.git](https://github.com/wishtodaya/Code2AI.git)
 
 ## License
 
